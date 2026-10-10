@@ -115,7 +115,7 @@ fn pending(rich: bool) -> Pending {
         &Journal::default(),
         &Wire::new(vec![Ok(response(reply("pending")))]),
         permit,
-        100,
+        &|| 100,
     ))
     .unwrap()
     {
@@ -132,7 +132,7 @@ fn verified(rich: bool) -> Verified {
         &Journal::default(),
         &Wire::new(vec![Ok(response(reply("approved")))]),
         permit,
-        101,
+        &|| 101,
     ))
     .unwrap()
     {
@@ -146,7 +146,7 @@ fn actual_twilio_wire_is_correlated_and_only_requested_rich_data_survives() {
     let p = prepared();
     let permit = get_permit(&p, cost::Mode::Production, 200);
     let wire = Wire::new(vec![Ok(response(reply("pending")))]);
-    let step = block_on(p.dispatch(&Journal::default(), &wire, permit, 100)).unwrap();
+    let step = block_on(p.dispatch(&Journal::default(), &wire, permit, &|| 100)).unwrap();
     let Step::Pending(pending) = step else {
         panic!("pending")
     };
@@ -167,7 +167,8 @@ fn actual_twilio_wire_is_correlated_and_only_requested_rich_data_survives() {
         .unwrap();
     let permit = get_permit(&p, cost::Mode::Production, 200);
     let wire = Wire::new(vec![Ok(response(reply("approved")))]);
-    let Step::Verified(v) = block_on(p.dispatch(&Journal::default(), &wire, permit, 101)).unwrap()
+    let Step::Verified(v) =
+        block_on(p.dispatch(&Journal::default(), &wire, permit, &|| 101)).unwrap()
     else {
         panic!("verified")
     };
@@ -220,7 +221,7 @@ fn authentication_response_and_session_mismatches_never_create_a_fact() {
                 &Journal::default(),
                 &Wire::new(vec![Ok(response(r))]),
                 permit,
-                101
+                &|| 101
             ))
             .unwrap_err(),
             Error::Refused
@@ -233,7 +234,7 @@ fn authentication_response_and_session_mismatches_never_create_a_fact() {
             &Journal::default(),
             &Wire::new(vec![Ok(response(reply("approved")))]),
             permit,
-            101
+            &|| 101
         ))
         .unwrap_err(),
         Error::Refused
@@ -247,7 +248,7 @@ fn authentication_response_and_session_mismatches_never_create_a_fact() {
             &Journal::default(),
             &Wire::new(vec![Ok(response(reply("pending")))]),
             permit,
-            101
+            &|| 101
         )),
         Ok(Step::Pending(_))
     ));
@@ -268,7 +269,7 @@ fn malformed_responses_and_possible_effects_fail_closed_without_retry() {
         let p = prepared();
         let permit = get_permit(&p, cost::Mode::Production, 200);
         let wire = Wire::new(vec![result]);
-        assert!(block_on(p.dispatch(&Journal::default(), &wire, permit, 101)).is_err());
+        assert!(block_on(p.dispatch(&Journal::default(), &wire, permit, &|| 101)).is_err());
         assert_eq!(wire.requests.borrow().len(), 1);
     }
 }
@@ -371,7 +372,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
         let permit = get_permit(&p, mode, 200);
         let wire = Wire::new(vec![]);
         assert_eq!(
-            block_on(p.dispatch(&Journal::default(), &wire, permit, 101)).unwrap_err(),
+            block_on(p.dispatch(&Journal::default(), &wire, permit, &|| 101)).unwrap_err(),
             Error::Budget
         );
         assert!(wire.requests.borrow().is_empty());
@@ -380,7 +381,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
         let mut wire = Wire::new(vec![]);
         wire.mode = mode;
         assert_eq!(
-            block_on(p.dispatch(&Journal::default(), &wire, permit, 101)).unwrap_err(),
+            block_on(p.dispatch(&Journal::default(), &wire, permit, &|| 101)).unwrap_err(),
             Error::Configuration
         );
     }
@@ -392,7 +393,8 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
             if expired == 200 { 200 } else { 400 },
         );
         assert!(
-            block_on(p.dispatch(&Journal::default(), &Wire::new(vec![]), permit, expired)).is_err()
+            block_on(p.dispatch(&Journal::default(), &Wire::new(vec![]), permit, &|| expired))
+                .is_err()
         );
     }
     let p = prepared();
@@ -409,7 +411,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
         .unwrap();
     let permit = get_permit(&wrong, cost::Mode::Production, 200);
     assert_eq!(
-        block_on(p.dispatch(&Journal::default(), &Wire::new(vec![]), permit, 101)).unwrap_err(),
+        block_on(p.dispatch(&Journal::default(), &Wire::new(vec![]), permit, &|| 101)).unwrap_err(),
         Error::Budget
     );
     for error in [
@@ -455,7 +457,7 @@ fn configured_and_cost_order_cascades_reserve_failed_costs_and_stop_on_pending()
         cost::CostOrder::Configured,
         money(30),
         2,
-        100,
+        &|| 100,
     ))
     .unwrap();
     assert!(matches!(run.result, Ok(Step::Pending(_))));
@@ -468,7 +470,7 @@ fn configured_and_cost_order_cascades_reserve_failed_costs_and_stop_on_pending()
         cost::CostOrder::Cheapest,
         money(30),
         2,
-        100,
+        &|| 100,
     ))
     .unwrap();
     assert_eq!(run.exposure.atoms, 10);
@@ -482,7 +484,7 @@ fn configured_and_cost_order_cascades_reserve_failed_costs_and_stop_on_pending()
             cost::CostOrder::Configured,
             money(30),
             2,
-            100,
+            &|| 100,
         ))
         .unwrap();
         assert_eq!(run.attempts, 1);
@@ -495,7 +497,7 @@ fn configured_and_cost_order_cascades_reserve_failed_costs_and_stop_on_pending()
         cost::CostOrder::Configured,
         money(10),
         1,
-        100,
+        &|| 100,
     ))
     .unwrap();
     assert_eq!(run.result.unwrap_err(), Error::Budget);
@@ -509,7 +511,7 @@ fn configured_and_cost_order_cascades_reserve_failed_costs_and_stop_on_pending()
             cost::CostOrder::Configured,
             money(10),
             1,
-            100
+            &|| 100
         ))
         .is_err()
     );
@@ -526,7 +528,7 @@ fn configured_and_cost_order_cascades_reserve_failed_costs_and_stop_on_pending()
         cost::CostOrder::Configured,
         money(10),
         1,
-        101,
+        &|| 101,
     ))
     .unwrap();
     assert!(matches!(run.result, Ok(Step::Verified(_))));
@@ -793,7 +795,7 @@ fn open_adapter_port_projects_only_authenticated_scoped_requested_data() {
             (),
             c,
             permit,
-            101,
+            &|| 101,
         ))
         .unwrap();
         assert_eq!(verified.expires_at(), 250);
@@ -828,7 +830,7 @@ fn open_adapter_port_projects_only_authenticated_scoped_requested_data() {
                 (),
                 context(),
                 permit,
-                101
+                &|| 101
             ))
             .is_err()
         );
@@ -856,7 +858,7 @@ fn open_adapter_port_projects_only_authenticated_scoped_requested_data() {
                 (),
                 c,
                 permit,
-                101
+                &|| 101
             ))
             .is_err()
         );
@@ -924,7 +926,7 @@ fn host_dispatch_reservation_blocks_uncertain_retries_conflicting_terms_and_budg
     let permit = get_permit(&p, cost::Mode::Production, 200);
     let wire = Wire::new(vec![Err(Error::Uncertain)]);
     assert_eq!(
-        block_on(p.dispatch(&journal, &wire, permit, 101)).unwrap_err(),
+        block_on(p.dispatch(&journal, &wire, permit, &|| 101)).unwrap_err(),
         Error::Uncertain
     );
     assert_eq!(wire.requests.borrow().len(), 1);
@@ -937,7 +939,7 @@ fn host_dispatch_reservation_blocks_uncertain_retries_conflicting_terms_and_budg
         let permit = get_permit(&p, cost::Mode::Production, 200);
         let wire = Wire::new(vec![]);
         assert_eq!(
-            block_on(p.dispatch(&journal, &wire, permit, 101)).unwrap_err(),
+            block_on(p.dispatch(&journal, &wire, permit, &|| 101)).unwrap_err(),
             Error::Reservation
         );
         assert!(wire.requests.borrow().is_empty());
@@ -948,7 +950,7 @@ fn host_dispatch_reservation_blocks_uncertain_retries_conflicting_terms_and_budg
     let permit = get_permit(&p, cost::Mode::Production, 200);
     let wire = Wire::new(vec![]);
     assert_eq!(
-        block_on(p.dispatch(&journal, &wire, permit, 101)).unwrap_err(),
+        block_on(p.dispatch(&journal, &wire, permit, &|| 101)).unwrap_err(),
         Error::Reservation
     );
     assert!(wire.requests.borrow().is_empty());
@@ -967,7 +969,7 @@ fn concurrent_prepared_requests_acquire_only_one_dispatch_reservation() {
                     let p = prepared();
                     let permit = get_permit(&p, cost::Mode::Production, 200);
                     let wire = Wire::new(vec![Ok(response(reply("pending")))]);
-                    let accepted = block_on(p.dispatch(journal, &wire, permit, 101)).is_ok();
+                    let accepted = block_on(p.dispatch(journal, &wire, permit, &|| 101)).is_ok();
                     (usize::from(accepted), wire.requests.borrow().len())
                 })
             })
@@ -998,7 +1000,7 @@ fn extension_cannot_dispatch_after_host_reservation_refusal() {
             (),
             context(),
             permit,
-            101
+            &|| 101
         ))
         .unwrap_err(),
         Error::Reservation
@@ -1021,7 +1023,7 @@ fn upstream_http_failure_bytes_are_explicit_private_and_stop_fallback() {
         cost::CostOrder::Configured,
         money(30),
         2,
-        100,
+        &|| 100,
     ))
     .unwrap();
     let error = run.result.unwrap_err();
@@ -1077,7 +1079,7 @@ fn delayed_fallback_rechecks_expiry_at_the_host_reservation_edge() {
         cost::CostOrder::Configured,
         money(30),
         2,
-        100,
+        &|| 100,
     ))
     .unwrap();
     assert_eq!(run.result.unwrap_err(), Error::Reservation);
@@ -1103,7 +1105,7 @@ fn complete_report_preserves_bounded_pending_refused_and_malformed_responses() {
             .body(Private::new(body.clone()))
             .unwrap();
         let wire = Wire::new(vec![Ok(response)]);
-        let report = block_on(p.dispatch_report(&Journal::default(), &wire, permit, 100));
+        let report = block_on(p.dispatch_report(&Journal::default(), &wire, permit, &|| 100));
         assert_eq!(report.result.is_ok(), accepted);
         let raw = report.response.unwrap();
         assert_eq!(raw.status().as_u16(), status);
@@ -1118,8 +1120,12 @@ fn complete_report_preserves_bounded_pending_refused_and_malformed_responses() {
     ] {
         let p = prepared();
         let permit = get_permit(&p, cost::Mode::Production, 200);
-        let report =
-            block_on(p.dispatch_report(&Journal::default(), &Wire::new(vec![result]), permit, 100));
+        let report = block_on(p.dispatch_report(
+            &Journal::default(),
+            &Wire::new(vec![result]),
+            permit,
+            &|| 100,
+        ));
         assert!(report.result.is_err());
         assert!(report.response.is_none());
     }
@@ -1146,7 +1152,9 @@ fn transport_receives_effective_deadline_and_refuses_queued_expired_work() {
     let p = prepared();
     let permit = get_permit(&p, cost::Mode::Production, 150);
     assert_eq!(
-        block_on(p.dispatch(&Journal::default(), &Queued, permit, 100)).unwrap_err(),
+        block_on(p.dispatch(&Journal::default(), &Queued, permit, &|| 100)).unwrap_err(),
         Error::NotDispatched
     );
 }
+
+mod clock;
