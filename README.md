@@ -1,26 +1,18 @@
 # cmbx
 
-**Mailbox-control admission gate for cvld.**
+Reusable mailbox verification, opaque comparison identities and caller-defined
+registration limits. `cvld` is one consumer; explicit callers can request complete
+upstream responses in RAM. The library has no database connection.
 
-`cmbx` will prove that a member controls an email mailbox. It is an authentication gate only; `cvld` receives an opaque proof (keyed hash for deduplication), never the address.
+The first concrete adapter implements Twilio Verify email through the service's configured SendGrid integration. Maintained
+libraries normalize identifiers and construct authenticated requests. Shared
+`cfbk` plans caller-selected provider/channel cascades under explicit cost bounds;
+unknown costs cannot authorize dispatch. Independent provider checks establish
+control, never one-human uniqueness.
 
-Status: name reserved, no implementation or qualified provider adapter yet.
-One invocation checks one provider result; `cfbk` owns ordering/fallback and
-`crbk` owns requirements. Empty production coverage is a blocking failure.
-See [the current contract](docs/CONTRACT.md).
-
-## Boundaries
-
-What it does:
-
-- Proves mailbox control and returns an opaque gate proof bound to its configured provider.
-
-What it never does:
-
-- Authentication only: never used for messaging, notifications or newsletters.
-- The email address never reaches `cvld`; low-entropy identifiers are keyed-hashed per tenant.
-- Raw factor data never reaches `cvld`: it receives only an opaque proof bound to its configured provider. No raw data in output, logs, errors or fixtures.
-- No own security primitives: a thin wrapper around the established best-practice library for the factor.
+See [the contract](docs/CONTRACT.md) and [provider, credential and cost notes](docs/PROVIDERS.md).
+Live provider flows remain unexecuted; remote checks and independent review are
+required before qualification.
 
 ## License
 

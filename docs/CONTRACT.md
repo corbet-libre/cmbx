@@ -1,16 +1,44 @@
-# Mailbox gate boundary
+# Mailbox verification contract
 
-The reserved mailbox gate checks control of one mailbox for authentication
-only. It does not own user messaging, notifications or newsletters. An address
-must never reach cvld or persisted member state; any low-entropy deduplication
-fingerprint must be keyed and scoped to its community, using maintained
-cryptographic libraries.
+The caller selects one or more explicit provider/channel operations and asks
+for mailbox control, a scoped comparison identity and its required information.
+The library owns normalization, provider-response verification and transformation.
+A comparison identity does not establish that the holder is a unique person.
 
-One invocation checks one provider result. `cfbk` owns provider ordering and
-fallback under `crbk` requirements. No confidence ranking, raw-factor logging,
-local security primitive or accepting placeholder is allowed.
+1. Construct a configured `Twilio` adapter with injected credentials. No secrets
+   discovery, account registration or implicit network access takes place.
+2. `prepare_begin` normalizes the destination and binds a private HTTP request to
+   account/service, operation, channel, subject/action context, identity scope,
+   validity and requested output. Preparation is inert; the quote binding is keyed.
+3. Supply an exact price or defensible maximum with source and expiry. The maximum
+   must cover provider-managed routing and failed-attempt charges. `cfbk` supplies
+   the configured/cost order and whole-cascade budget, then a move-only permit.
+4. `begin_with_fallback` performs the cascade and conservatively retains each
+   attempt's maximum exposure. Only a transport-proven `NotDispatched` result
+   permits fallback. Pending, uncertain, rejected and successful results stop it.
+5. A pending session remains in RAM. `prepare_check` binds one supplied code to its
+   exact provider session and context; it cannot accept an arbitrary member SID.
+   Checks also require cost authorization. No automatic resending or retries.
+6. An approved authenticated response must match account, service, destination,
+   supported channel and session. The result carries only the scoped keyed
+   comparison value, context binding and caller validity cap by default.
+7. Explicit rich output returns all response bytes, including unknown extensions,
+   in a redacted, non-serializable RAM wrapper. Provider fields are distinguishable
+   from the verified domain fact. Only requested rich output retains the address.
+8. `Verified::reserve` calls the host's atomic registration port with the opaque
+   identity, stable registration ID, caller-defined window and nonzero limit.
+   The host must reject conflicting ID reuse and implement cross-process atomicity;
+   an in-memory fixture is not a production database or a uniqueness guarantee.
 
-No implementation or qualified adapter exists yet. Tests are fixture-only and
-do not authorize live provider calls, registration, spending or outreach.
-Empty production coverage must remain a blocking failure until the actual
-adapter and its adversarial verification tests exist.
+The transport is a trusted application boundary. It must authenticate HTTPS,
+limit responses and timeouts, disable redirects/retries and avoid payload logging
+or caching. A member-controlled transport cannot supply verification evidence.
+The adapter bounds parsed responses to 64 KiB and emits uniform errors.
+
+There is no direct database connection or persistent session journal. The caller
+owns operation identity and pending cost exposure across restarts. Losing RAM
+state does not authorize resending: an uncertain effect remains uncertain.
+Expired verified facts cannot reserve registrations. Host policy checks validity
+when consuming returned facts and supplies fresh, correctly bound operation IDs.
+
+See [integration and cost notes](PROVIDERS.md) for actual capabilities and limits.

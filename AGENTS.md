@@ -1,20 +1,25 @@
 # Agent instructions
 
-Write all code comments and documentation in English.
+Write comments and documentation in English. Owned code forbids unsafe Rust.
 
 ## Product boundary
 
-- Mailbox-control gate for cvld: proof of control over an email mailbox, for authentication only.
-- Proves mailbox control and returns an opaque gate proof bound to its configured provider.
-- Authentication only: never used for messaging, notifications or newsletters.
-- The email address never reaches `cvld`; low-entropy identifiers are keyed-hashed per tenant.
-- Raw factor data never reaches `cvld`: it receives only an opaque proof bound to its configured provider. No raw data in output, logs, errors or fixtures.
-- No own security primitives: a thin wrapper around the established best-practice library for the factor.
-- This crate is LGPL-3.0-only WITH LGPL-3.0-linking-exception. Do not add implementation code available only under the full GPL or AGPL.
-- Tests use fixtures only; no live calls to third-party providers.
+- cmbx is reusable mailbox expertise; cvld is one consumer. Caller rules select
+  providers/channels, requested information, scope and general at-most-X limits.
+- Maintained upstream normalization and independent provider verification; no
+  home-made OTP/cryptographic protocols or fixed cheapest-provider assumptions.
+- Shared `cfbk` owns cost planning and fallback. Every real dispatch requires a
+  matching bounded cost permit; unknown prices never mean free.
+- Raw results are explicit, private, RAM-only. No database connections, SQL,
+  file caches or hidden persistence. Default diagnostics redact private data.
+- Caller atomic state owns registration, counting windows, release and replay;
+  identifier control is not one-human uniqueness.
+- No live provider/sandbox calls, spending, account signup, registry publication
+  or deployment during development. Tests use inert credentials and transports.
+- Preserve LGPL-3.0-only WITH LGPL-3.0-linking-exception; no GPL/AGPL-only code.
 
 ## Quality boundary
 
-- `cargo fmt --check`, `cargo clippy --all-targets` (no warnings),
-  `cargo test` — all green before every commit. No local workstation
-  builds; use GHA, Crow as fallback.
+Workstations edit and format; Crow compiles, tests and enforces existing full
+source coverage. Commit candidates before remote validation. Test owned behavior
+through real upstream libraries; report unexecuted live flows separately.
