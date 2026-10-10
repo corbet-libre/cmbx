@@ -94,3 +94,31 @@ object; accepting unauthenticated fields in one violates this contract.
 normalizer. Its `Simulated` output cannot be used as `Verified` or reserve a
 registration. The open verification port currently accepts Production only; a
 future provider sandbox must have distinct evidence and credential types.
+
+## Provider and protocol arsenal
+
+Primary documentation reviewed 2026-10-10. **Implemented** means the local
+fixture-tested path described here, not live-provider qualification.
+**Extension-compatible** means the existing trusted interface can carry the
+integration; provider-specific authentication/correlation still needs work.
+**Candidate** means researched only. **Unsupported** means the stated guarantee
+must not be inferred. These are integration options, not activated services.
+
+Every future network route needs an explicit injected credential, account/mode
+binding, bounded cost quote with provenance and expiry, atomic host reservations,
+fresh dispatch deadlines, rich private reports and negative fixtures. Unknown
+prices block dispatch. Cost bases below identify what a host must obtain; they
+are not current numeric quotations or permission to contact the provider.
+
+| Ecosystem and source | Status / reuse path | Credentials and cost basis | Semantic limit |
+|---|---|---|---|
+| [Twilio Verify Email](https://www.twilio.com/docs/verify/email) | Implemented through the configured Verify/SendGrid service. | Inject Twilio account/service SID and auth token; SendGrid setup remains with the host/provider. Account tariff covers start/check and delivery. | Approved verification of the exact address; no alias merging or one-person inference. |
+| [Vonage Verify v2](https://developer.vonage.com/en/verify/guides/verify-migration-guide) | Extension-compatible candidate: email workflow, maintained API/SDK. | Inject application JWT/appropriate supported credentials; quote the configured pricing model and complete workflow. | Authenticate completed verification for the same request and address. A channel switch requires compatible requested meaning. |
+| [Infobip 2FA Email](https://www.infobip.com/docs/2fa-service) | Extension-compatible candidate: official PIN send/check API and SDKs. | Inject account base URL, scoped API credential, application and template IDs; configured email/verification tariff. | PIN ID and destination correlation are mandatory; a delivery receipt alone is insufficient. |
+| [Stytch Email OTP](https://stytch.com/docs/api-reference/consumer/api/otp/via-email/send) | Extension-compatible candidate: official API with Rust SDK examples. | Project ID/secret and explicit test/live endpoint; host-verified project tariff for selected operations. | Sending is not authentication. Preserve method/address linkage and expiry; do not substitute a generic session/user ID for the mailbox. |
+| [Amazon SES](https://docs.aws.amazon.com/ses/latest/dg/send-email-concepts-credentials.html) | Candidate delivery component: prefer official AWS Rust SDK. **Unsupported as standalone mailbox proof.** | Inject scoped AWS credentials/session tokens or separate SMTP credentials; region/account send tariff and any auxiliary charges. | SES sender/domain verification concerns the sender. Recipient control requires a separately designed challenge and atomic host state. |
+| [Resend](https://resend.com/docs/api-reference/emails/send-email) | Candidate delivery component: official API/SDK. **Unsupported as standalone mailbox proof.** | Inject scoped API key and configured sender; account-plan/send quote with validity. | Send IDs and delivery webhooks do not establish recipient control. A complete verifier would need explicit challenge expiry and consumption. |
+
+Mailbox delivery and mailbox verification are separate capabilities. Prefer
+providers that own a well-defined verification ceremony; do not add our own OTP
+service merely to label a mail sender as a ready verification integration.
