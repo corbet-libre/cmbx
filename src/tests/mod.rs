@@ -49,7 +49,7 @@ fn money(atoms: u64) -> cost::Amount {
         atoms,
     }
 }
-fn permit(p: &Prepared, mode: cost::Mode, expiry: u64) -> cost::DispatchPermit<usize> {
+fn get_permit(p: &Prepared, mode: cost::Mode, expiry: u64) -> cost::DispatchPermit<usize> {
     cost::Plan::new(
         vec![cost::Offer {
             candidate: cfbk::Candidate::new(0, ["control"]),
@@ -108,7 +108,7 @@ fn pending(rich: bool) -> Pending {
     let mut c = context();
     c.include_upstream = rich;
     let p = adapter().prepare_begin(DEST, CHANNEL, c, 100).unwrap();
-    let permit = permit(&p, cost::Mode::Production, 200);
+    let permit = get_permit(&p, cost::Mode::Production, 200);
     match block_on(p.dispatch(
         &Wire::new(vec![Ok(response(reply("pending")))]),
         permit,
@@ -124,7 +124,7 @@ fn verified(rich: bool) -> Verified {
     let p = adapter()
         .prepare_check(pending(rich), "123456", 101)
         .unwrap();
-    let permit = permit(&p, cost::Mode::Production, 200);
+    let permit = get_permit(&p, cost::Mode::Production, 200);
     match block_on(p.dispatch(
         &Wire::new(vec![Ok(response(reply("approved")))]),
         permit,
@@ -140,7 +140,7 @@ fn verified(rich: bool) -> Verified {
 #[test]
 fn actual_twilio_wire_is_correlated_and_only_requested_rich_data_survives() {
     let p = prepared();
-    let permit = permit(&p, cost::Mode::Production, 200);
+    let permit = get_permit(&p, cost::Mode::Production, 200);
     let wire = Wire::new(vec![Ok(response(reply("pending")))]);
     let step = block_on(p.dispatch(&wire, permit, 100)).unwrap();
     let Step::Pending(pending) = step else {
@@ -159,7 +159,7 @@ fn actual_twilio_wire_is_correlated_and_only_requested_rich_data_survives() {
     assert_eq!(form["To"], DEST);
     assert_eq!(form["Channel"], CHANNEL.as_str());
     let p = adapter().prepare_check(pending, "123456", 101).unwrap();
-    let permit = permit(&p, cost::Mode::Production, 200);
+    let permit = get_permit(&p, cost::Mode::Production, 200);
     let wire = Wire::new(vec![Ok(response(reply("approved")))]);
     let Step::Verified(v) = block_on(p.dispatch(&wire, permit, 101)).unwrap() else {
         panic!("verified")
@@ -207,14 +207,14 @@ fn authentication_response_and_session_mismatches_never_create_a_fact() {
         let p = adapter()
             .prepare_check(pending(false), "123456", 101)
             .unwrap();
-        let permit = permit(&p, cost::Mode::Production, 200);
+        let permit = get_permit(&p, cost::Mode::Production, 200);
         assert_eq!(
             block_on(p.dispatch(&Wire::new(vec![Ok(response(r))]), permit, 101)).unwrap_err(),
             Error::Refused
         );
     }
     let p = prepared();
-    let permit = permit(&p, cost::Mode::Production, 200);
+    let permit = get_permit(&p, cost::Mode::Production, 200);
     assert_eq!(
         block_on(p.dispatch(
             &Wire::new(vec![Ok(response(reply("approved")))]),
@@ -227,7 +227,7 @@ fn authentication_response_and_session_mismatches_never_create_a_fact() {
     let p = adapter()
         .prepare_check(pending(false), "123456", 101)
         .unwrap();
-    let permit = permit(&p, cost::Mode::Production, 200);
+    let permit = get_permit(&p, cost::Mode::Production, 200);
     assert!(matches!(
         block_on(p.dispatch(
             &Wire::new(vec![Ok(response(reply("pending")))]),
@@ -251,7 +251,7 @@ fn malformed_responses_and_possible_effects_fail_closed_without_retry() {
         Err(Error::NotDispatched),
     ] {
         let p = prepared();
-        let permit = permit(&p, cost::Mode::Production, 200);
+        let permit = get_permit(&p, cost::Mode::Production, 200);
         let wire = Wire::new(vec![result]);
         assert!(block_on(p.dispatch(&wire, permit, 101)).is_err());
         assert_eq!(wire.requests.borrow().len(), 1);
@@ -341,7 +341,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
     assert!(other.prepare_check(pending(false), "123456", 101).is_err());
     for mode in [cost::Mode::Simulation, cost::Mode::Sandbox] {
         let p = prepared();
-        let permit = permit(&p, mode, 200);
+        let permit = get_permit(&p, mode, 200);
         let wire = Wire::new(vec![]);
         assert_eq!(
             block_on(p.dispatch(&wire, permit, 101)).unwrap_err(),
@@ -349,7 +349,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
         );
         assert!(wire.requests.borrow().is_empty());
         let p = prepared();
-        let permit = permit(&p, cost::Mode::Production, 200);
+        let permit = get_permit(&p, cost::Mode::Production, 200);
         let mut wire = Wire::new(vec![]);
         wire.mode = mode;
         assert_eq!(
@@ -359,7 +359,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
     }
     for expired in [200, 300] {
         let p = prepared();
-        let permit = permit(
+        let permit = get_permit(
             &p,
             cost::Mode::Production,
             if expired == 200 { 200 } else { 400 },
@@ -378,7 +378,7 @@ fn credentials_inputs_scope_time_and_modes_are_validated_before_transport() {
             100,
         )
         .unwrap();
-    let permit = permit(&wrong, cost::Mode::Production, 200);
+    let permit = get_permit(&wrong, cost::Mode::Production, 200);
     assert_eq!(
         block_on(p.dispatch(&Wire::new(vec![]), permit, 101)).unwrap_err(),
         Error::Budget
@@ -558,4 +558,140 @@ fn maintained_mailbox_parser_preserves_local_part_case_and_aliases() {
     assert_ne!(normalize("case+tag@example.com").unwrap(), DEST);
     assert_ne!(normalize("Case@example.com").unwrap(), DEST);
     assert!(normalize("invalid").is_err());
+}
+
+#[test]
+fn local_simulation_uses_real_planning_and_transformations_without_credentials_or_transport() {
+    fn offers() -> Vec<SimulationOffer> {
+        vec![
+            SimulationOffer {
+                channel: CHANNEL,
+                price: cost::Price::AtMost(money(10)),
+                source: "dummy-tariff".into(),
+                valid_until: 200,
+                outcome: cost::Outcome::SafeFailure,
+            },
+            SimulationOffer {
+                channel: CHANNEL,
+                price: cost::Price::AtMost(money(20)),
+                source: "dummy-tariff".into(),
+                valid_until: 200,
+                outcome: cost::Outcome::Success,
+            },
+        ]
+    }
+    fn settings() -> SimulationSettings {
+        SimulationSettings {
+            order: cost::CostOrder::Configured,
+            budget: money(30),
+            max_attempts: 2,
+            now: 100,
+        }
+    }
+    let result = simulate(DEST, b"scope", offers(), settings()).unwrap();
+    assert_eq!(result.attempts, 2);
+    assert_eq!(result.exposure.atoms, 30);
+    assert_eq!(result.outcome, cost::Outcome::Success);
+    let other = simulate(DEST, b"different-scope", offers(), settings()).unwrap();
+    assert_ne!(result.comparison, other.comparison);
+    assert!(format!("{result:?}").contains("Simulated"));
+    for outcome in [
+        cost::Outcome::Pending,
+        cost::Outcome::Uncertain,
+        cost::Outcome::Refused,
+    ] {
+        let mut values = offers();
+        values[0].outcome = outcome;
+        assert_eq!(
+            simulate(DEST, b"scope", values, settings())
+                .unwrap()
+                .attempts,
+            1
+        );
+    }
+    assert!(simulate("invalid", b"scope", offers(), settings()).is_err());
+    assert!(simulate(DEST, b"", offers(), settings()).is_err());
+    let mut unknown = offers();
+    unknown
+        .iter_mut()
+        .for_each(|o| o.price = cost::Price::Unknown);
+    assert!(simulate(DEST, b"scope", unknown, settings()).is_err());
+    let mut short = settings();
+    short.max_attempts = 1;
+    assert!(simulate(DEST, b"scope", offers(), short).is_err());
+    assert!(format!("{:?}", offers()).contains("SimulationOffer"));
+    assert!(format!("{:?}", settings()).contains("SimulationSettings"));
+}
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn concurrent_registration_calls_use_the_atomic_host_port() {
+    let verified = verified(false);
+    let state = State::default();
+    std::thread::scope(|scope| {
+        let tasks: Vec<_> = (0..6u8)
+            .map(|id| {
+                let v = &verified;
+                let s = &state;
+                scope.spawn(move || {
+                    v.reserve(
+                        s,
+                        Registration {
+                            id: &[id],
+                            window: b"window",
+                            limit: NonZeroU32::new(2).unwrap(),
+                        },
+                        101,
+                    )
+                    .unwrap()
+                })
+            })
+            .collect();
+        let results: Vec<_> = tasks.into_iter().map(|task| task.join().unwrap()).collect();
+        assert_eq!(
+            results
+                .iter()
+                .filter(|r| **r == Reservation::Reserved)
+                .count(),
+            2
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|r| **r == Reservation::LimitReached)
+                .count(),
+            4
+        );
+    });
+}
+
+#[test]
+fn malformed_private_session_and_wrong_sid_prefix_are_refused() {
+    let mut p = pending(false);
+    p.sid = "invalid".into();
+    assert!(adapter().prepare_check(p, "123456", 101).is_err());
+    assert!(
+        Twilio::new(
+            format!("XX{}", "0".repeat(32)),
+            service(),
+            Private::new(b"secret".to_vec()),
+            cost::Mode::Production
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn ambiguous_address_syntax_is_refused_and_international_domains_are_canonical() {
+    for address in [
+        "\"Case\"@example.com",
+        "x@127.0.0.1",
+        "x@[bad]",
+        "x@a\u{200d}b.com",
+    ] {
+        assert!(normalize(address).is_err(), "{address}");
+    }
+    assert_eq!(
+        normalize("Case@bücher.example").unwrap(),
+        normalize("Case@xn--bcher-kva.example").unwrap()
+    );
 }
