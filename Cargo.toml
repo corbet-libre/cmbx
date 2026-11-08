@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.88"
 description = "Mailbox-control gate for cvld: proof of control over an email mailbox, for authentication only"
 license = "LGPL-3.0-only WITH LGPL-3.0-linking-exception"
-repository = "https://git.corbet.ch/corbet-foss/cmbx"
+repository = "https://git.corbet.ch/corbet-libre/cmbx.git"
 readme = "README.md"
 publish = false
 include = ["Cargo.toml", "src/**", "README.md", "LICENSE", "LICENSE.md", "LICENSES/LGPL-3.0-only.txt", "LICENSES/LGPL-3.0-linking-exception.txt", "LICENSES/GPL-3.0-only.txt"]
@@ -17,7 +17,7 @@ crate-type = ["rlib"]
 unsafe_code = "forbid"
 missing_docs = "warn"
 [dependencies]
-cfbk = { git = "https://git.corbet.ch/corbet-foss/cfbk", branch = "main" }
+cfbk = { git = "https://git.corbet.ch/corbet-libre/cfbk.git", branch = "main" }
 http = "1"
 url = "2"
 base64 = "0.23"
