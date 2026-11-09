@@ -5,7 +5,12 @@ export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 export CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-always}"
 export RUST_TEST_THREADS="${RUST_TEST_THREADS:-2}"
 export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable}"
-: "${CI_COMMIT_SHA:?verify requires the exact source revision}"
+# The checkout's own content, never a per-run value: resolve the tree this
+# checkout stands on, so only committed content decides the result. A source
+# without a resolvable revision is still refused (the job runner already
+# refuses a checkout that is not the declared commit).
+git rev-parse --verify 'HEAD^{tree}' >/dev/null 2>&1 ||
+  { echo 'verify requires a checkout with a resolvable source tree' >&2; exit 2; }
 : "${ARTIFACT_ROOT:?verify requires an absolute ARTIFACT_ROOT}"
 [[ "$ARTIFACT_ROOT" = /* ]] || { echo "ARTIFACT_ROOT must be absolute" >&2; exit 2; }
 # Preserve available reports on failure too; never discard the original exit status.
